@@ -6,6 +6,41 @@ using NetCord.Services.ApplicationCommands;
 
 public class UserModule:ApplicationCommandModule<ApplicationCommandContext>
 {
+    private IEnumerable<EmbedFieldProperties> GetUserEmbed(LuduvoDotNet.Records.User user)
+    {
+        return [
+            new EmbedFieldProperties
+            {
+                Name="Display name",
+                Value=string.IsNullOrWhiteSpace(user.DisplayName) ? "-" : user.DisplayName,
+                Inline=true,
+            },
+            new EmbedFieldProperties
+            {
+                Name="ID",
+                Value=user.UserId.ToString(),
+                Inline=true,
+            },
+            new EmbedFieldProperties
+            {
+                Name="Status",
+                Value=string.IsNullOrWhiteSpace(user.Status) ? "-" : user.Status,
+                Inline=true,
+            },
+            new EmbedFieldProperties
+            {
+                Name="Friends / Places / Items",
+                Value=$"{user.FriendCount} / {user.PlaceCount} / {user.ItemCount}",
+                Inline=false,
+            },
+            new EmbedFieldProperties
+            {
+                Name="Member since",
+                Value=$"{user.MemberSince:yyyy-MM-dd HH:mm:ss} UTC",
+                Inline=false,
+            },
+        ];
+    }
     [SlashCommand("getuserbyid", "Get a user from ID")]
     public async Task GetUserByIdAsync(
         [SlashCommandParameter(Name = "id",Description = "The id of the user")]uint id)
@@ -19,40 +54,8 @@ public class UserModule:ApplicationCommandModule<ApplicationCommandContext>
                 Title=user.Username,
                 Description=string.IsNullOrWhiteSpace(user.Bio) ? "No bio provided." : user.Bio,
                 Color=new Color(0x5865F2),
-                Fields=
-                [
-                    new EmbedFieldProperties
-                    {
-                        Name="Display name",
-                        Value=string.IsNullOrWhiteSpace(user.DisplayName) ? "-" : user.DisplayName,
-                        Inline=true,
-                    },
-                    new EmbedFieldProperties
-                    {
-                        Name="ID",
-                        Value=user.UserId.ToString(),
-                        Inline=true,
-                    },
-                    new EmbedFieldProperties
-                    {
-                        Name="Status",
-                        Value=string.IsNullOrWhiteSpace(user.Status) ? "-" : user.Status,
-                        Inline=true,
-                    },
-                    new EmbedFieldProperties
-                    {
-                        Name="Friends / Places / Items",
-                        Value=$"{user.FriendCount} / {user.PlaceCount} / {user.ItemCount}",
-                        Inline=false,
-                    },
-                    new EmbedFieldProperties
-                    {
-                        Name="Member since",
-                        Value=$"{user.MemberSince:yyyy-MM-dd HH:mm:ss} UTC",
-                        Inline=false,
-                    },
-                ],
-                Timestamp=DateTimeOffset.UtcNow,
+                Fields=GetUserEmbed(user),
+                Timestamp=DateTimeOffset.UtcNow
             };
 
             await RespondAsync(InteractionCallback.Message(new InteractionMessageProperties
@@ -133,45 +136,34 @@ public class UserModule:ApplicationCommandModule<ApplicationCommandContext>
                 ));
                 return;
             }
-            var user = await users.FirstOrDefault().GetUserAsync();
+            var firstUser = users.FirstOrDefault();
+            if (firstUser is null)
+            {
+                await RespondAsync(InteractionCallback.Message(new InteractionMessageProperties
+                    {
+                        Flags = MessageFlags.Ephemeral,
+                        Embeds =
+                        [
+                            new EmbedProperties
+                            {
+                                Title = "Not found",
+                                Description = $"No user found for username `{username}`.",
+                                Color = new Color(0xFEE75C),
+                            },
+                        ]
+                    }
+                ));
+                return;
+            }
+
+            var user = await firstUser.GetUserAsync();
             var embed=new EmbedProperties
             {
                 Title=user.Username,
                 Description=string.IsNullOrWhiteSpace(user.Bio) ? "No bio provided." : user.Bio,
                 Color=new Color(0x5865F2),
                 Fields=
-                [
-                    new EmbedFieldProperties
-                    {
-                        Name="Display name",
-                        Value=string.IsNullOrWhiteSpace(user.DisplayName) ? "-" : user.DisplayName,
-                        Inline=true,
-                    },
-                    new EmbedFieldProperties
-                    {
-                        Name="ID",
-                        Value=user.UserId.ToString(),
-                        Inline=true,
-                    },
-                    new EmbedFieldProperties
-                    {
-                        Name="Status",
-                        Value=string.IsNullOrWhiteSpace(user.Status) ? "-" : user.Status,
-                        Inline=true,
-                    },
-                    new EmbedFieldProperties
-                    {
-                        Name="Friends / Places / Items",
-                        Value=$"{user.FriendCount} / {user.PlaceCount} / {user.ItemCount}",
-                        Inline=false,
-                    },
-                    new EmbedFieldProperties
-                    {
-                        Name="Member since",
-                        Value=$"{user.MemberSince:yyyy-MM-dd HH:mm:ss} UTC",
-                        Inline=false,
-                    },
-                ],
+                    GetUserEmbed(user),
                 Timestamp=DateTimeOffset.UtcNow,
             };
 
@@ -208,6 +200,82 @@ public class UserModule:ApplicationCommandModule<ApplicationCommandContext>
                         Title="Unexpected error",
                         Description="An unexpected error occurred while fetching user data.",
                         Color=new Color(0xED4245),
+                    },
+                ],
+            }));
+        }
+    } 
+    
+    [SlashCommand("getlatestuser","Gets the latest registered user")]
+    public async Task GetLatestUserAsync()
+    {
+        try
+        {
+            var users = await BaseModule.luduvo.SearchUsersAsync(string.Empty, 1, null);
+            var latestUser = users.FirstOrDefault();
+
+            if (latestUser is null)
+            {
+                await RespondAsync(InteractionCallback.Message(new InteractionMessageProperties
+                {
+                    Flags = MessageFlags.Ephemeral,
+                    Embeds =
+                    [
+                        new EmbedProperties
+                        {
+                            Title = "No users found",
+                            Description = "Could not retrieve the latest registered user at this moment.",
+                            Color = new Color(0xFEE75C),
+                        },
+                    ],
+                }));
+                return;
+            }
+
+            var user = await latestUser.GetUserAsync();
+
+            var embed = new EmbedProperties
+            {
+                Title = user.Username,
+                Description = string.IsNullOrWhiteSpace(user.Bio) ? "No bio provided." : user.Bio,
+                Color = new Color(0x5865F2),
+                Fields = GetUserEmbed(user),
+                Timestamp = DateTimeOffset.UtcNow,
+            };
+
+            await RespondAsync(InteractionCallback.Message(new InteractionMessageProperties
+            {
+                Embeds = [embed],
+            }));
+        }
+        catch (TooManyRequestsException)
+        {
+            await RespondAsync(InteractionCallback.Message(new InteractionMessageProperties
+            {
+                Flags = MessageFlags.Ephemeral,
+                Embeds =
+                [
+                    new EmbedProperties
+                    {
+                        Title = "Rate limited",
+                        Description = "The API is rate limiting requests right now. Please try again in a moment.",
+                        Color = new Color(0xFEE75C),
+                    },
+                ],
+            }));
+        }
+        catch (Exception)
+        {
+            await RespondAsync(InteractionCallback.Message(new InteractionMessageProperties
+            {
+                Flags = MessageFlags.Ephemeral,
+                Embeds =
+                [
+                    new EmbedProperties
+                    {
+                        Title = "Unexpected error",
+                        Description = "An unexpected error occurred while fetching user data.",
+                        Color = new Color(0xED4245),
                     },
                 ],
             }));

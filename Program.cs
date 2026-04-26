@@ -16,4 +16,5 @@ builder.Services.AddDiscordGateway(options =>
 }).AddApplicationCommands();
 var app=builder.Build();
 app.AddApplicationCommandModule<UserModule>();
+app.AddApplicationCommandModule<PlacesModule>();
 await app.RunAsync();
