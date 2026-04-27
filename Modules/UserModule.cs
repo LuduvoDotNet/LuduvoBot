@@ -41,6 +41,74 @@ public class UserModule:ApplicationCommandModule<ApplicationCommandContext>
             },
         ];
     }
+    private async Task<(AttachmentProperties Attachment, string FileName)?> TryCreateHeadshotAttachmentAsync(uint userId)
+    {
+        if (userId>int.MaxValue)
+            return null;
+
+        try
+        {
+            var bytes=await BaseModule.luduvo.GetUserHeadshot((int)userId);
+            if (bytes.Length==0)
+                return null;
+
+            var fileName=$"headshot-{userId}.png";
+            var stream=new MemoryStream(bytes, writable:false);
+            return (new AttachmentProperties(fileName, stream), fileName);
+        }
+        catch (UserNotFoundException)
+        {
+            return null;
+        }
+        catch (TooManyRequestsException)
+        {
+            return null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static string? TryGetBannerUrl(LuduvoDotNet.Records.User user)
+    {
+        var bannerUrl=user.BannerUrl;
+        if (bannerUrl is null)
+            return null;
+
+        if (bannerUrl.IsAbsoluteUri&&(bannerUrl.Scheme==Uri.UriSchemeHttps||bannerUrl.Scheme==Uri.UriSchemeHttp))
+            return bannerUrl.ToString();
+
+        return null;
+    }
+
+    private async Task<InteractionMessageProperties> BuildUserMessageAsync(LuduvoDotNet.Records.User user)
+    {
+        var embed=new EmbedProperties
+        {
+            Title=user.Username,
+            Description=string.IsNullOrWhiteSpace(user.Bio) ? "No bio provided." : user.Bio,
+            Color=new Color(0x5865F2),
+            Fields=GetUserEmbed(user),
+            Timestamp=DateTimeOffset.UtcNow,
+        };
+
+        var bannerUrl=TryGetBannerUrl(user);
+        if (!string.IsNullOrWhiteSpace(bannerUrl))
+            embed.Image=new EmbedImageProperties(bannerUrl);
+
+        var headshot=await TryCreateHeadshotAttachmentAsync(user.UserId);
+        if (headshot is null)
+            return new InteractionMessageProperties { Embeds=[embed] };
+
+        embed.Thumbnail=new EmbedThumbnailProperties($"attachment://{headshot.Value.FileName}");
+        return new InteractionMessageProperties
+        {
+            Embeds=[embed],
+            Attachments=[headshot.Value.Attachment],
+        };
+    }
+
     [SlashCommand("getuserbyid", "Get a user from ID")]
     public async Task GetUserByIdAsync(
         [SlashCommandParameter(Name = "id",Description = "The id of the user")]uint id)
@@ -48,20 +116,7 @@ public class UserModule:ApplicationCommandModule<ApplicationCommandContext>
         try
         {
             var user=await BaseModule.luduvo.GetUserByIdAsync(id);
-
-            var embed=new EmbedProperties
-            {
-                Title=user.Username,
-                Description=string.IsNullOrWhiteSpace(user.Bio) ? "No bio provided." : user.Bio,
-                Color=new Color(0x5865F2),
-                Fields=GetUserEmbed(user),
-                Timestamp=DateTimeOffset.UtcNow
-            };
-
-            await RespondAsync(InteractionCallback.Message(new InteractionMessageProperties
-            {
-                Embeds=[embed],
-            }));
+            await RespondAsync(InteractionCallback.Message(await BuildUserMessageAsync(user)));
         }
         catch (UserNotFoundException)
         {
@@ -157,20 +212,7 @@ public class UserModule:ApplicationCommandModule<ApplicationCommandContext>
             }
 
             var user = await firstUser.GetUserAsync();
-            var embed=new EmbedProperties
-            {
-                Title=user.Username,
-                Description=string.IsNullOrWhiteSpace(user.Bio) ? "No bio provided." : user.Bio,
-                Color=new Color(0x5865F2),
-                Fields=
-                    GetUserEmbed(user),
-                Timestamp=DateTimeOffset.UtcNow,
-            };
-
-            await RespondAsync(InteractionCallback.Message(new InteractionMessageProperties
-            {
-                Embeds=[embed],
-            }));
+            await RespondAsync(InteractionCallback.Message(await BuildUserMessageAsync(user)));
         }
         catch (TooManyRequestsException)
         {
@@ -233,20 +275,7 @@ public class UserModule:ApplicationCommandModule<ApplicationCommandContext>
             }
 
             var user = await latestUser.GetUserAsync();
-
-            var embed = new EmbedProperties
-            {
-                Title = user.Username,
-                Description = string.IsNullOrWhiteSpace(user.Bio) ? "No bio provided." : user.Bio,
-                Color = new Color(0x5865F2),
-                Fields = GetUserEmbed(user),
-                Timestamp = DateTimeOffset.UtcNow,
-            };
-
-            await RespondAsync(InteractionCallback.Message(new InteractionMessageProperties
-            {
-                Embeds = [embed],
-            }));
+            await RespondAsync(InteractionCallback.Message(await BuildUserMessageAsync(user)));
         }
         catch (TooManyRequestsException)
         {
