@@ -10,6 +10,7 @@
     <ItemGroup>
       <PackageReference Include="LuduvoDotNet" Version="0.6.2" />
       <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.7" />
+      <PackageReference Include="MySqlConnector" Version="2.3.7" />
       <PackageReference Include="NetCord" Version="1.0.0-alpha.485" />
       <PackageReference Include="NetCord.Hosting" Version="1.0.0-alpha.485" />
       <PackageReference Include="NetCord.Hosting.Services" Version="1.0.0-alpha.485" />

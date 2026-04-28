@@ -7,7 +7,6 @@ using NetCord.Hosting.Gateway;
 using NetCord.Hosting.Services;
 using NetCord.Hosting.Services.ApplicationCommands;
 using NetCord.Rest;
-
 var builder=Host.CreateApplicationBuilder(args);
 builder.Services.AddDiscordGateway(options =>
 {
@@ -17,4 +16,5 @@ builder.Services.AddDiscordGateway(options =>
 var app=builder.Build();
 app.AddApplicationCommandModule<UserModule>();
 app.AddApplicationCommandModule<PlacesModule>();
+app.AddApplicationCommandModule<VerificationModule>();
 await app.RunAsync();
